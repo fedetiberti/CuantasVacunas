@@ -1,5 +1,5 @@
 lapply(c("janitor", "lubridate","rtweet", "glue", "httr",
-         "scales","tidyverse", "rtweet", "zoo", "reticulate",
+         "scales","tidyverse", "rtweet", "zoo", "reticulate", "paletteer",
          "jsonlite","gt", "rlist"), require, character.only=T)
 
 # Primer tuit
@@ -105,12 +105,14 @@ break_fechas_totales <- case_when(fecha_ayer - ymd("2021-01-19")< days(90) ~ "1 
                fecha_ayer - ymd("2021-01-19")> days(90) & fecha_ayer - ymd("2021-01-19")< days(180) ~ "2 week",
                TRUE ~ "1 month")
 
+
 fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>% 
   list.rbind() %>% 
   as.data.frame() %>% 
   unnest() %>% 
   mutate(fecha = ymd(substr(fecha, start=1, stop=10)), 
-         totaldiario=primeradosis+segundadosis) %>% 
+         totaldiario=primeradosis+segundadosis, 
+         tipovacuna = ifelse(tipovacuna == "AstraZeneca ChAdOx1 S recombinante", "COVISHIELD ChAdOx1nCoV COVID 19", tipovacuna)) %>% 
   group_by(fecha, tipovacuna) %>% 
   summarize(totaldiario = sum(totaldiario)) %>% 
   filter(fecha>ymd("2021-01-19")) %>% 
