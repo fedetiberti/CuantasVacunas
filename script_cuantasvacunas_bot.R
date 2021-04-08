@@ -237,6 +237,16 @@ vacunados_edades <- jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunad
   as.data.frame() %>% 
   select(-idprovincia)
 
+summary_row <- vacunados_edades %>% 
+  group_by(grupo) %>% 
+  summarize(total_personas = sum(as.numeric(personas)), 
+            total_dosis1 = sum(as.numeric(dosis1)), 
+            proporcion_total_pais = round(total_dosis1/total_personas*100,1)) %>% 
+  select(grupo, proporcion_total_pais) %>% pivot_wider(names_from = grupo, values_from = proporcion_total_pais) %>% 
+  bind_cols(c("Total Pais")) %>% rename(provincia = `...10`) %>% mutate(orden = 1) %>% 
+  relocate(provincia)
+
+
 jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>% 
   rlist::list.rbind() %>% 
   t() %>% 
@@ -247,6 +257,10 @@ jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>%
   pivot_wider(names_from = grupo, values_from=proporcion) %>% 
   relocate(">=100", .after = "90-99") %>% 
   ungroup() %>% 
+  mutate(orden = row_number()+1) %>% 
+  bind_rows(summary_row) %>% 
+  arrange(orden) %>% 
+  select(-orden) %>% 
   rename(" " = provincia) %>% 
   gt() %>%  data_color(
     columns = vars(`15-29`,
@@ -262,7 +276,7 @@ jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>%
       palette = paletteer::paletteer_d(
         palette = "ggsci::green_material"
       ) %>% as.character(),
-      domain = c(0,100))) %>% 
+      domain = c(0,95))) %>% 
   tab_header(title=paste0("Personas vacunadas cada 100 habitantes, ", fecha_latina), subtitle = NULL) %>% 
   tab_style(
     style = list(
