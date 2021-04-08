@@ -1,6 +1,8 @@
 lapply(c("janitor", "lubridate","rtweet", "glue", "httr",
          "scales","tidyverse", "rtweet", "zoo", "reticulate",
-         "jsonlite", "rlist"), require, character.only=T)
+         "jsonlite","gt", "rlist"), require, character.only=T)
+
+# Primer tuit
 
 vacunados <- fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>% 
   list.rbind() %>% 
@@ -218,15 +220,171 @@ uso_stock <- aplicadas_recibidas %>%
 
 primeradosis_pob_print <- format(round(primeradosis_total / poblacion_total * 100, 2), decimal.mark = ",")
 
-texto_tweet <- paste0("Ayer, ", fecha_latina, ", se reportaron ",primeradosis_ayer_print, " primeras dosis y ", 
+texto_tweet_1 <- paste0("Ayer, ", fecha_latina, ", se reportaron ",primeradosis_ayer_print, " primeras dosis y ", 
                       segundadosis_ayer_print, " segundas dosis de vacunas contra el coronavirus en Argentina. En total, se aplicaron ",
                       primeradosis_total_print, " primeras dosis y ", segundadosis_total_print,
                       " segundas dosis (", uso_stock," de las distribuidas). ",
                       primeradosis_pob_print, "% de la poblacion recibio al menos una dosis.")
 
+
+# Segundo tuit
+
+vacunados_edades <- jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>% 
+  rlist::list.rbind() %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  select(-idprovincia)
+
+jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>% 
+  rlist::list.rbind() %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  select(-idprovincia) %>%
+  mutate(proporcion = round(as.numeric(dosis1)/as.numeric(personas)*100, 1)) %>% 
+  select(provincia, grupo, proporcion) %>% 
+  pivot_wider(names_from = grupo, values_from=proporcion) %>% 
+  relocate(">=100", .after = "90-99") %>% 
+  ungroup() %>% 
+  rename(" " = provincia) %>% 
+  gt() %>%  data_color(
+    columns = vars(`15-29`,
+                   `30-39`,
+                   `40-49`,
+                   `50-59`,
+                   `60-69`,
+                   `70-79`,
+                   `80-89`,
+                   `90-99`,
+                   `>=100`),
+    colors = scales::col_numeric(
+      palette = paletteer::paletteer_d(
+        palette = "ggsci::green_material"
+      ) %>% as.character(),
+      domain = c(0,100))) %>% 
+  tab_header(title=paste0("Personas vacunadas cada 100 habitantes, ", fecha_latina), subtitle = NULL) %>% 
+  tab_style(
+    style = list(
+      cell_fill(color = "white"),
+      cell_text(weight = "bold")),
+    locations = cells_body(
+      columns = vars(" "),
+      rows = everything())) %>% 
+  tab_options(column_labels.font.weight = 'bold',
+              heading.title.font.size = 26,
+              heading.title.font.weight = 'bold') %>% 
+  tab_style(
+    style = list(
+      cell_fill(color = "lightcyan"),
+      cell_text(weight = "bold")
+    ),
+    locations = cells_column_labels(vars(`15-29`,
+                                         `30-39`,
+                                         `40-49`,
+                                         `50-59`,
+                                         `60-69`,
+                                         `70-79`,
+                                         `80-89`,
+                                         `90-99`,
+                                         `>=100`))) %>% 
+  gtsave("vacunados_provincias_edades.png")
+
+mayores_menores_60 <- vacunados_edades %>% 
+  mutate(across(3:5, as.numeric)) %>% 
+  mutate(mayor60 =  ifelse(grupo %in% c(">=100", "60-69", "70-79", "80-89", "90-99"), 1, 0)) %>% 
+  group_by(mayor60) %>% 
+  summarize(dosis1 = sum(dosis1), 
+            personas = sum(personas), 
+            proporcion = round(dosis1/personas*100, 0))
+
+
+mayores_60_vacunados <- mayores_menores_60 %>% filter(mayor60==1) %>% 
+  pull(proporcion) %>% as.character() %>% paste0("%")
+
+menores_60_vacunados <- mayores_menores_60 %>% filter(mayor60==0) %>% 
+  pull(proporcion) %>% as.character() %>% paste0("%")
+
+
+vacunados6069 <- vacunados_edades %>% 
+  mutate(across(3:5, as.numeric)) %>% 
+  group_by(grupo) %>% 
+  summarize(dosis1 = sum(dosis1), 
+            personas = sum(personas), 
+            proporcion = round(dosis1/personas*100, 0)) %>% 
+  filter(grupo=="60-69") %>% 
+  pull(proporcion) %>% as.character() %>% paste0("%")
+
+vacunados7079 <- vacunados_edades %>% 
+  mutate(across(3:5, as.numeric)) %>% 
+  group_by(grupo) %>% 
+  summarize(dosis1 = sum(dosis1), 
+            personas = sum(personas), 
+            proporcion = round(dosis1/personas*100, 0)) %>% 
+  filter(grupo=="70-79") %>% 
+  pull(proporcion) %>% as.character() %>% paste0("%")
+
+
+vacunados8089 <- vacunados_edades %>% 
+  mutate(across(3:5, as.numeric)) %>% 
+  group_by(grupo) %>% 
+  summarize(dosis1 = sum(dosis1), 
+            personas = sum(personas), 
+            proporcion = round(dosis1/personas*100, 0)) %>% 
+  filter(grupo=="80-89") %>% 
+  pull(proporcion) %>% as.character() %>% paste0("%")
+
+vacunados9099 <- vacunados_edades %>% 
+  mutate(across(3:5, as.numeric)) %>% 
+  group_by(grupo) %>% 
+  summarize(dosis1 = sum(dosis1), 
+            personas = sum(personas), 
+            proporcion = round(dosis1/personas*100, 0)) %>% 
+  filter(grupo=="90-99") %>% 
+  pull(proporcion) %>% as.character() %>% paste0("%")
+
+vacunados100 <- vacunados_edades %>% 
+  mutate(across(3:5, as.numeric)) %>% 
+  group_by(grupo) %>% 
+  summarize(dosis1 = sum(dosis1), 
+            personas = sum(personas), 
+            proporcion = round(dosis1/personas*100, 0)) %>% 
+  filter(grupo==">=100") %>% 
+  pull(proporcion) %>% as.character() %>% paste0("%")
+
+texto_tweet_2 <- paste0("Hasta ayer, ", 
+                        fecha_latina, 
+                        ", recibió al menos una dosis el ",
+                        menores_60_vacunados, 
+                        " de los menores de 60 años y el ", 
+                        mayores_60_vacunados, 
+                        " de los mayores de 60 (",
+                        vacunados6069,
+                        " de la franja 60-69, ",
+                        vacunados7079,
+                        " de la franja 70-79, ",
+                        vacunados8089,
+                        " de la franja 80-89, ",
+                        vacunados9099,
+                        " de la franja 90-99 y ",
+                        vacunados100,
+                        " de los mayores de 100 años).")
+
+# Postear los tuits
+
 get_token()
 
-post_tweet(status = texto_tweet, media=c("vacunados_provincias.png",
+post_tweet(status = texto_tweet_1, media=c("vacunados_provincias.png",
                                          "vacunados_diarios_provincias.png",
                                          "vacunados_totales_diarios.png",
                                          "aplicadas_recibidas.png"))
+
+
+my_timeline <- get_timeline(home_user())
+reply_id <- my_timeline$status_id[1]
+
+
+post_tweet(status = texto_tweet_2,
+           media = "vacunados_provincias_edades.png",
+           in_reply_to_status_id = reply_id)
+
+
+
