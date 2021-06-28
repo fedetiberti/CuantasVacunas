@@ -781,7 +781,7 @@ deptos_hoy <- vacunacion_deptos %>% filter(fecha == max(fecha)) %>%
          pob_dosis_2 = dosis2/poblacion*100, 
          pob_soloprimera = pob_dosis_1 - pob_dosis_2)
 
-shape <- read_sf("/Volumes/GoogleDrive/My Drive/PhD/Trash/coronavirus/bot/Codgeo_Pais_x_dpto_con_datos (1)") %>% 
+shape <- read_sf("Codgeo_Pais_x_dpto_con_datos") %>% 
   mutate(link2 = ifelse(substr(link, start=1, stop=2)=="02", "99999", link)) %>% 
   left_join(deptos_hoy, by="link2")
 
