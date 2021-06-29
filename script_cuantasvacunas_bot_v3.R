@@ -882,6 +882,157 @@ texto_tweet_4 <- paste0("El departamento con mayor avance en la vacunación es "
                         minimo_vacunacion %>% pull(pob_dosis_1) %>% round(1),
                         "%.")
 
+###################################################### QUINTO TUIT ########################################################
+
+
+astrazeneca <- fromJSON(url("https://covidstats.com.ar/ws/vacunadosargentina?comprimido=1&tiposvacuna%5B%5D=7&tiposvacuna%5B%5D=2")) %>% 
+  list.rbind() %>% t() %>% 
+  as.data.frame() %>% 
+  select(c(dosis1, dosis2)) %>% 
+  mutate(fecha = seq.Date(from = ymd("2020-01-01"), length.out = nrow(.), by="days"))
+
+sinopharm <- fromJSON(url("https://covidstats.com.ar/ws/vacunadosargentina?comprimido=1&tiposvacuna%5B%5D=3")) %>% 
+  list.rbind() %>% t() %>% 
+  as.data.frame() %>% 
+  select(c(dosis1, dosis2)) %>% 
+  mutate(fecha = seq.Date(from = ymd("2020-01-01"), length.out = nrow(.), by="days"))
+
+sputnik <- fromJSON(url("https://covidstats.com.ar/ws/vacunadosargentina?comprimido=1&tiposvacuna%5B%5D=1")) %>% 
+  list.rbind() %>% t() %>% 
+  as.data.frame() %>% 
+  select(c(dosis1, dosis2)) %>% 
+  mutate(fecha = seq.Date(from = ymd("2020-01-01"), length.out = nrow(.), by="days"))
+
+
+sputnik.plot <- sputnik %>% mutate(dosis1_acum = cumsum(dosis1), 
+                                   dosis2_acum = cumsum(dosis2)) %>% 
+  pivot_longer(cols=c(dosis1_acum, dosis2_acum), 
+               names_to = "dosis", 
+               values_to = "cantidad") %>% 
+  filter(fecha>ymd("2020-12-24")) %>% 
+  ggplot(aes(x=fecha, y=cantidad, color=dosis)) +
+  geom_line(size=0.8, show.legend=FALSE)+
+  scale_color_manual(breaks=c("dosis1_acum", "dosis2_acum"), 
+                     values= c("steelblue3", "springgreen3")) +
+  theme_light() + labs(x="", y="", title=paste0("Dosis de Sputnik totales, ",fecha_latina), fill="Vacuna") +
+  scale_x_date( date_breaks = break_fechas_totales,date_labels = "%d/%m", expand = c(0,0)) +
+  scale_y_continuous(labels=label_number(accuracy = 1, scale = 1, 
+                                         big.mark = ".", decimal.mark = ","))+
+  theme(plot.title = element_text(hjust = 0.5, face="bold"), 
+        axis.text = element_text(face="bold"), 
+        legend.position="bottom", 
+        legend.title=element_text(size=9), 
+        legend.text=element_text(size=9),
+        legend.margin=margin(-15, 0, 0, 0))
+
+
+az.plot <- astrazeneca %>% mutate(dosis1_acum = cumsum(dosis1), 
+                                  dosis2_acum = cumsum(dosis2)) %>% 
+  pivot_longer(cols=c(dosis1_acum, dosis2_acum), 
+               names_to = "dosis", 
+               values_to = "cantidad") %>% 
+  filter(fecha>ymd("2020-12-24")) %>% 
+  ggplot(aes(x=fecha, y=cantidad, color=dosis)) +
+  geom_line(size=0.8, show.legend=FALSE)+
+  scale_color_manual(breaks=c("dosis1_acum", "dosis2_acum"), 
+                     values= c("steelblue3", "springgreen3")) +
+  theme_light() + labs(x="", y="", title=paste0("Dosis de AstraZeneca totales, ",fecha_latina), fill="Vacuna") +
+  scale_x_date( date_breaks = break_fechas_totales,date_labels = "%d/%m", expand = c(0,0)) +
+  scale_y_continuous(labels=label_number(accuracy = 1, scale = 1, 
+                                         big.mark = ".", decimal.mark = ","))+
+  theme(plot.title = element_text(hjust = 0.5, face="bold"), 
+        axis.text = element_text(face="bold"), 
+        legend.position="bottom", 
+        legend.title=element_text(size=9), 
+        legend.text=element_text(size=9),
+        legend.margin=margin(-15, 0, 0, 0))
+
+sinopharm.plot <- sinopharm %>% mutate(dosis1_acum = cumsum(dosis1), 
+                                       dosis2_acum = cumsum(dosis2)) %>% 
+  pivot_longer(cols=c(dosis1_acum, dosis2_acum), 
+               names_to = "dosis", 
+               values_to = "cantidad") %>% 
+  filter(fecha>ymd("2020-12-24")) %>% 
+  ggplot(aes(x=fecha, y=cantidad, color=dosis)) +
+  geom_line(size=0.8, show.legend=TRUE)+
+  scale_color_manual(breaks=c("dosis1_acum", "dosis2_acum"), 
+                     values= c("steelblue3", "springgreen3"), 
+                     labels = c("Primera dosis", "Segunda dosis")) +
+  theme_light() + labs(x="", y="", title=paste0("Dosis de Sinopharm totales, ",fecha_latina), color="") +
+  scale_x_date( date_breaks = break_fechas_totales,date_labels = "%d/%m", expand = c(0,0)) +
+  scale_y_continuous(labels=label_number(accuracy = 1, scale = 1, 
+                                         big.mark = ".", decimal.mark = ","))+
+  theme(plot.title = element_text(hjust = 0.5, face="bold"), 
+        axis.text = element_text(face="bold"), 
+        legend.position="bottom", 
+        legend.title=element_text(size=9), 
+        legend.text=element_text(size=9),
+        legend.margin=margin(-15, 0, 0, 0))
+
+combinado_marcas <- sputnik.plot/az.plot/sinopharm.plot
+
+ggsave(combinado_marcas, filename="combinado_marcas.png", height=6, width=9.44)
+
+
+az_total <- astrazeneca %>%
+  mutate(dosis1_acum = cumsum(dosis1), 
+         dosis2_acum = cumsum(dosis2), 
+         vacuna = "AstraZeneca") %>% 
+  filter(fecha == max(fecha))
+
+sputnik_total <- sputnik %>%
+  mutate(dosis1_acum = cumsum(dosis1), 
+         dosis2_acum = cumsum(dosis2), 
+         vacuna = "Sputnik V") %>% 
+  filter(fecha == max(fecha))
+
+sinopharm_total <- sinopharm %>%
+  mutate(dosis1_acum = cumsum(dosis1), 
+         dosis2_acum = cumsum(dosis2), 
+         vacuna = "Sinopharm") %>% 
+  filter(fecha == max(fecha))
+
+az_total %>% 
+  bind_rows(sputnik_total) %>% 
+  bind_rows(sinopharm_total) %>% 
+  pivot_longer(cols = c(dosis1_acum, dosis2_acum)) %>% 
+  mutate(value_format = format(value, big.mark=".", decimal.mark=",")) %>% 
+  ggplot(aes(x=vacuna, y=value, fill=name)) + geom_col() +
+  geom_text(aes(label =value_format, 
+                y= value),
+            position = position_stack(vjust = .5), 
+            size=3.5) +
+  scale_fill_manual(breaks=c("dosis1_acum", "dosis2_acum"), 
+                    values= c("steelblue3", "springgreen3"), 
+                    labels = c("Primera dosis", "Segunda dosis")) +
+  scale_y_continuous(labels=label_number(accuracy = 1, scale = 1, 
+                                         big.mark = ".", decimal.mark = ",")) +
+  labs(title=paste0("Dosis aplicadas totales por tipo de vacuna, ", fecha_latina), x="", y="", fill="")+
+  theme_light() +
+  theme(plot.title = element_text(hjust = 0.5, face="bold"), 
+        axis.text = element_text(size=9,face="bold"), 
+        legend.position="bottom", 
+        legend.title=element_text(size=9), 
+        legend.text=element_text(size=9),
+        legend.margin=margin(-15, 0, 0, 0)) +
+  ggsave(filename="vacunas_portipo.png", height = 6, width = 9.44)
+
+az_total_agregado <- (az_total$dosis1_acum + az_total$dosis2_acum) %>% format(big.mark=".", decimal.mark=",")
+
+sputnik_total_agregado <- (sputnik_total$dosis1_acum + sputnik_total$dosis2_acum) %>% format(big.mark=".", decimal.mark=",")
+
+sinopharm_total_agregado <-  (sinopharm_total$dosis1_acum + sinopharm_total$dosis2_acum) %>% format(big.mark=".", decimal.mark=",") 
+
+texto_tweet_5 <- paste0("Hasta ayer, ", 
+                        fecha_latina, 
+                        ", se aplicaron en total ",
+                        az_total_agregado, 
+                        " dosis de AstraZeneca, ", 
+                        sinopharm_total_agregado, 
+                        " dosis de Sinopharm y ",
+                        sputnik_total_agregado,
+                        " dosis de Sputnik V.")
+
 # Postear los tuits
 
 get_token()
@@ -916,6 +1067,14 @@ reply_id <- my_timeline$status_id[1]
 post_tweet(status = texto_tweet_4,
            media = c("mapa_dosis1.png",
                      "mapa_dosis2.png"),
+           in_reply_to_status_id = reply_id)
+
+my_timeline <- get_timeline(home_user())
+reply_id <- my_timeline$status_id[1]
+
+post_tweet(status = texto_tweet_5,
+           media = c("combinado_marcas.png",
+                     "vacunas_portipo.png"),
            in_reply_to_status_id = reply_id)
 
 
