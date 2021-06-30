@@ -966,7 +966,7 @@ sinopharm.plot <- sinopharm %>% mutate(dosis1_acum = cumsum(dosis1),
         axis.text = element_text(face="bold"), 
         legend.position="bottom", 
         legend.title=element_text(size=9), 
-        legend.text=element_text(size=9),
+        legend.text=element_text(size=11),
         legend.margin=margin(-15, 0, 0, 0))
 
 combinado_marcas <- sputnik.plot/az.plot/sinopharm.plot
@@ -997,7 +997,7 @@ az_total %>%
   bind_rows(sinopharm_total) %>% 
   pivot_longer(cols = c(dosis1_acum, dosis2_acum)) %>% 
   mutate(value_format = format(value, big.mark=".", decimal.mark=",")) %>% 
-  ggplot(aes(x=vacuna, y=value, fill=name)) + geom_col() +
+  ggplot(aes(x=vacuna, y=value, fill=name)) + geom_col(alpha=0.9) +
   geom_text(aes(label =value_format, 
                 y= value),
             position = position_stack(vjust = .5), 
@@ -1010,10 +1010,11 @@ az_total %>%
   labs(title=paste0("Dosis aplicadas totales por tipo de vacuna, ", fecha_latina), x="", y="", fill="")+
   theme_light() +
   theme(plot.title = element_text(hjust = 0.5, face="bold"), 
-        axis.text = element_text(size=9,face="bold"), 
+        axis.text.y = element_text(size=9,face="bold"), 
+        axis.text.x = element_text(size=12,face="bold"), 
         legend.position="bottom", 
         legend.title=element_text(size=9), 
-        legend.text=element_text(size=9),
+        legend.text=element_text(size=10),
         legend.margin=margin(-15, 0, 0, 0)) +
   ggsave(filename="vacunas_portipo.png", height = 6, width = 9.44)
 
