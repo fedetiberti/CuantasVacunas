@@ -113,19 +113,19 @@ fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>%
   unnest() %>% 
   mutate(fecha = ymd(substr(fecha, start=1, stop=10)), 
          totaldiario=primeradosis+segundadosis, 
-         tipovacuna = ifelse(tipovacuna == "AstraZeneca ChAdOx1 S recombinante", "COVISHIELD ChAdOx1nCoV COVID 19", tipovacuna)) %>% 
-  group_by(fecha, tipovacuna) %>% 
+         tipovacuna_simple = ifelse(tipovacuna_simple == "Covishield", "AstraZeneca", tipovacuna_simple)) %>% 
+  group_by(fecha, tipovacuna_simple) %>% 
   summarize(totaldiario = sum(totaldiario)) %>% 
   filter(fecha>ymd("2021-01-19")) %>% 
-  mutate(tipovacuna = factor(tipovacuna, levels=c("Sinopharm Vacuna SARSCOV 2 inactivada",
-                                                  "COVISHIELD ChAdOx1nCoV COVID 19", 
-                                                  "Sputnik V COVID19 Instituto Gamaleya"))) %>% 
-  ggplot(aes(x=fecha, y =totaldiario, fill=tipovacuna))+
+  mutate(tipovacuna_simple = factor(tipovacuna_simple, levels=c("Moderna", "Sinopharm",
+                                                  "AstraZeneca", 
+                                                  "Sputnik"))) %>% 
+  ggplot(aes(x=fecha, y =totaldiario, fill=tipovacuna_simple))+
   geom_col(alpha=0.8) +
-  scale_fill_manual(breaks = c("Sputnik V COVID19 Instituto Gamaleya", "COVISHIELD ChAdOx1nCoV COVID 19", 
-                               "Sinopharm Vacuna SARSCOV 2 inactivada"),
-                    values=c("indianred3","steelblue3", "springgreen3"), 
-                    labels=c("Sputnik V","AstraZeneca", "Sinopharm"))+
+  scale_fill_manual(breaks = c("Sputnik", "AstraZeneca", 
+                               "Sinopharm", "Moderna"),
+                    values=c("indianred3","steelblue3", "springgreen3", "yellow4"), 
+                    labels=c("Sputnik V","AstraZeneca", "Sinopharm", "Moderna"))+
   theme_light() + labs(x="", y="", title=paste0("Total de vacunas reportadas por dia, ",fecha_latina), fill="Vacuna") +
   scale_x_date( date_breaks = break_fechas_totales,date_labels = "%d/%m", expand = c(0,0)) +
   scale_y_continuous(labels=label_number(accuracy = 1, scale = 1, 
@@ -203,19 +203,19 @@ c <- fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>%
   unnest() %>% 
   mutate(fecha = ymd(substr(fecha, start=1, stop=10)), 
          totaldiario=primeradosis+segundadosis, 
-         tipovacuna = ifelse(tipovacuna == "AstraZeneca ChAdOx1 S recombinante", "COVISHIELD ChAdOx1nCoV COVID 19", tipovacuna)) %>% 
-  group_by(fecha, tipovacuna) %>% 
+         tipovacuna_simple = ifelse(tipovacuna_simple == "Covishield", "AstraZeneca", tipovacuna_simple)) %>% 
+  group_by(fecha, tipovacuna_simple) %>% 
   summarize(totaldiario = sum(totaldiario)) %>% 
   filter(fecha>ymd("2021-01-19")) %>% 
-  mutate(tipovacuna = factor(tipovacuna, levels=c("Sinopharm Vacuna SARSCOV 2 inactivada",
-                                                  "COVISHIELD ChAdOx1nCoV COVID 19", 
-                                                  "Sputnik V COVID19 Instituto Gamaleya"))) %>% 
-  ggplot(aes(x=fecha, y =totaldiario, fill=tipovacuna))+
-  geom_col(alpha=0.8, show.legend = FALSE) +
-  scale_fill_manual(breaks = c("Sputnik V COVID19 Instituto Gamaleya", "COVISHIELD ChAdOx1nCoV COVID 19", 
-                               "Sinopharm Vacuna SARSCOV 2 inactivada"),
-                    values=c("indianred3","steelblue3", "springgreen3"), 
-                    labels=c("Sputnik V","AstraZeneca", "Sinopharm"))+
+  mutate(tipovacuna_simple = factor(tipovacuna_simple, levels=c("Moderna", "Sinopharm",
+                                                                "AstraZeneca", 
+                                                                "Sputnik"))) %>% 
+  ggplot(aes(x=fecha, y =totaldiario, fill=tipovacuna_simple))+
+  geom_col(alpha=0.8) +
+  scale_fill_manual(breaks = c("Sputnik", "AstraZeneca", 
+                               "Sinopharm", "Moderna"),
+                    values=c("indianred3","steelblue3", "springgreen3", "yellow4"), 
+                    labels=c("Sputnik V","AstraZeneca", "Sinopharm", "Moderna"))+
   theme_light() + labs(x="", y="", title=paste0("Dosis totales reportadas por día por tipo de vacuna, ",fecha_latina), fill="Vacuna") +
   scale_x_date( date_breaks = break_fechas_totales,date_labels = "%d/%m", expand = c(0,0)) +
   scale_y_continuous(labels=label_number(accuracy = 1, scale = 1, 
@@ -233,22 +233,23 @@ d <- fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>%
   unnest() %>% 
   mutate(fecha = ymd(substr(fecha, start=1, stop=10)), 
          totaldiario=primeradosis+segundadosis, 
-         tipovacuna = ifelse(tipovacuna == "AstraZeneca ChAdOx1 S recombinante", "COVISHIELD ChAdOx1nCoV COVID 19", tipovacuna)) %>% 
-  group_by(fecha, tipovacuna) %>% 
+         tipovacuna_simple = ifelse(tipovacuna_simple == "Covishield", "AstraZeneca", tipovacuna_simple)) %>% 
+  group_by(fecha, tipovacuna_simple) %>% 
   summarize(totaldiario = sum(totaldiario)) %>% 
   ungroup() %>% group_by(fecha) %>% 
   mutate(total = sum(totaldiario), 
          proporcion = totaldiario/total*100) %>% ungroup() %>% 
   filter(fecha>ymd("2021-01-19")) %>% 
-  mutate(tipovacuna = factor(tipovacuna, levels=c("Sinopharm Vacuna SARSCOV 2 inactivada",
-                                                  "COVISHIELD ChAdOx1nCoV COVID 19", 
-                                                  "Sputnik V COVID19 Instituto Gamaleya"))) %>% 
-  ggplot(aes(x=fecha, y =proporcion, fill=tipovacuna))+
+  mutate(tipovacuna = factor(tipovacuna_simple, levels=c("Moderna",
+                                                  "Sinopharm",
+                                                  "AstraZeneca", 
+                                                  "Sputnik"))) %>% 
+  ggplot(aes(x=fecha, y =proporcion, fill=tipovacuna_simple))+
   geom_area(alpha=0.8) +
-  scale_fill_manual(breaks = c("Sputnik V COVID19 Instituto Gamaleya", "COVISHIELD ChAdOx1nCoV COVID 19", 
-                               "Sinopharm Vacuna SARSCOV 2 inactivada"),
-                    values=c("indianred3","steelblue3", "springgreen3"), 
-                    labels=c("Sputnik V","AstraZeneca", "Sinopharm"))+
+  scale_fill_manual(breaks = c("Sputnik", "AstraZeneca", 
+                               "Sinopharm", "Moderna"),
+                    values=c("indianred3","steelblue3", "springgreen3", "yellow4"), 
+                    labels=c("Sputnik V","AstraZeneca", "Sinopharm", "Moderna"))+
   theme_light() + labs(x="", y="", title="", fill="Vacuna") +
   scale_x_date( date_breaks = break_fechas_totales,date_labels = "%d/%m", expand = c(0,0)) +
   scale_y_continuous(labels=label_number(accuracy = 1, suffix="%"))+
@@ -262,7 +263,6 @@ d <- fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>%
 combinado_vacunas <- c/d
 
 ggsave(combinado_vacunas, filename="combinado_vacunas.png", height=6, width=9.44)
-
 
 primeradosis_ayer <- vacunas_diarias %>% filter(fecha == fecha_ayer) %>% 
   pull(primeradosis) %>% sum() 
@@ -300,6 +300,7 @@ texto_tweet_1 <- paste0("Ayer, ", fecha_latina, ", se reportaron ",primeradosis_
                         primeradosis_total_print, " primeras dosis y ", segundadosis_total_print,
                         " segundas dosis, ", primeradosis_pob_print,"% y ",
                         segundadosis_pob_print, "% de la población respectivamente.")
+
 
 ####################### SEGUNDO TUIT #################################
 
@@ -903,6 +904,12 @@ sputnik <- fromJSON(url("https://covidstats.com.ar/ws/vacunadosargentina?comprim
   select(c(dosis1, dosis2)) %>% 
   mutate(fecha = seq.Date(from = ymd("2020-01-01"), length.out = nrow(.), by="days"))
 
+moderna <- fromJSON(url("https://covidstats.com.ar/ws/vacunadosargentina?comprimido=1&tiposvacuna%5B%5D=8")) %>% 
+  list.rbind() %>% t() %>% 
+  as.data.frame() %>% 
+  select(c(dosis1, dosis2)) %>% 
+  mutate(fecha = seq.Date(from = ymd("2020-01-01"), length.out = nrow(.), by="days"))
+
 
 sputnik.plot <- sputnik %>% mutate(dosis1_acum = cumsum(dosis1), 
                                    dosis2_acum = cumsum(dosis2)) %>% 
@@ -954,7 +961,7 @@ sinopharm.plot <- sinopharm %>% mutate(dosis1_acum = cumsum(dosis1),
                values_to = "cantidad") %>% 
   filter(fecha>ymd("2020-12-24")) %>% 
   ggplot(aes(x=fecha, y=cantidad, color=dosis)) +
-  geom_line(size=0.8, show.legend=TRUE)+
+  geom_line(size=0.8, show.legend=FALSE)+
   scale_color_manual(breaks=c("dosis1_acum", "dosis2_acum"), 
                      values= c("steelblue3", "springgreen3"), 
                      labels = c("Primera dosis", "Segunda dosis")) +
@@ -969,9 +976,31 @@ sinopharm.plot <- sinopharm %>% mutate(dosis1_acum = cumsum(dosis1),
         legend.text=element_text(size=11),
         legend.margin=margin(-15, 0, 0, 0))
 
-combinado_marcas <- sputnik.plot/az.plot/sinopharm.plot
+moderna.plot <- moderna %>% mutate(dosis1_acum = cumsum(dosis1), 
+                                     dosis2_acum = cumsum(dosis2)) %>% 
+  pivot_longer(cols=c(dosis1_acum, dosis2_acum), 
+               names_to = "dosis", 
+               values_to = "cantidad") %>% 
+  filter(fecha>ymd("2020-12-24")) %>% 
+  ggplot(aes(x=fecha, y=cantidad, color=dosis)) +
+  geom_line(size=0.8, show.legend=TRUE)+
+  scale_color_manual(breaks=c("dosis1_acum", "dosis2_acum"), 
+                     values= c("steelblue3", "springgreen3"), 
+                     labels = c("Primera dosis", "Segunda dosis")) +
+  theme_light() + labs(x="", y="", title=paste0("Dosis de Moderna totales, ",fecha_latina), color="") +
+  scale_x_date( date_breaks = break_fechas_totales,date_labels = "%d/%m", expand = c(0,0)) +
+  scale_y_continuous(labels=label_number(accuracy = 1, scale = 1, 
+                                         big.mark = ".", decimal.mark = ","))+
+  theme(plot.title = element_text(hjust = 0.5, face="bold"), 
+        axis.text = element_text(face="bold"), 
+        legend.position="bottom", 
+        legend.title=element_text(size=9), 
+        legend.text=element_text(size=11),
+        legend.margin=margin(-15, 0, 0, 0))
 
-ggsave(combinado_marcas, filename="combinado_marcas.png", height=6, width=9.44)
+combinado_marcas <- sputnik.plot/az.plot/sinopharm.plot/moderna.plot
+
+ggsave(combinado_marcas, filename="combinado_marcas.png", height=9, width=9.44)
 
 
 az_total <- astrazeneca %>%
@@ -992,9 +1021,16 @@ sinopharm_total <- sinopharm %>%
          vacuna = "Sinopharm") %>% 
   filter(fecha == max(fecha))
 
+moderna_total <- moderna %>%
+  mutate(dosis1_acum = cumsum(dosis1), 
+         dosis2_acum = cumsum(dosis2), 
+         vacuna = "Moderna") %>% 
+  filter(fecha == max(fecha))
+
 az_total %>% 
   bind_rows(sputnik_total) %>% 
   bind_rows(sinopharm_total) %>% 
+  bind_rows(moderna_total) %>% 
   pivot_longer(cols = c(dosis1_acum, dosis2_acum)) %>% 
   mutate(value_format = format(value, big.mark=".", decimal.mark=",")) %>% 
   ggplot(aes(x=vacuna, y=value, fill=name)) + geom_col(alpha=0.9) +
@@ -1016,7 +1052,7 @@ az_total %>%
         legend.title=element_text(size=9), 
         legend.text=element_text(size=10),
         legend.margin=margin(-15, 0, 0, 0)) +
-  ggsave(filename="vacunas_portipo.png", height = 6, width = 9.44)
+  ggsave(filename="vacunas_portipo.png", height = 9, width = 9.44)
 
 az_total_agregado <- (az_total$dosis1_acum + az_total$dosis2_acum) %>% format(big.mark=".", decimal.mark=",")
 
@@ -1024,11 +1060,15 @@ sputnik_total_agregado <- (sputnik_total$dosis1_acum + sputnik_total$dosis2_acum
 
 sinopharm_total_agregado <-  (sinopharm_total$dosis1_acum + sinopharm_total$dosis2_acum) %>% format(big.mark=".", decimal.mark=",") 
 
+moderna_total_agregado <-  (moderna_total$dosis1_acum + moderna_total$dosis2_acum) %>% format(big.mark=".", decimal.mark=",") 
+
 texto_tweet_5 <- paste0("Hasta ayer, ", 
                         fecha_latina, 
                         ", se aplicaron en total ",
                         az_total_agregado, 
                         " dosis de AstraZeneca, ", 
+                        moderna_total_agregado, 
+                        " dosis de Moderna, ", 
                         sinopharm_total_agregado, 
                         " dosis de Sinopharm y ",
                         sputnik_total_agregado,
