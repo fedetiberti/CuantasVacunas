@@ -5,13 +5,14 @@ lapply(c("janitor", "lubridate", "glue", "gt", "patchwork", "httr", "rtweet",
 
 ####################### PRIMER TUIT #################################
 
+
 vacunados <- fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>% 
   list.rbind() %>% 
   as.data.frame() %>% 
   unnest() %>% 
   group_by(denominacion) %>% 
-  summarize(primera_dosis_cantidad = sum(primeradosis), 
-            segunda_dosis_cantidad=sum(segundadosis), 
+  summarize(primera_dosis_cantidad = sum(primeradosis, na.rm = TRUE), 
+            segunda_dosis_cantidad=sum(esquemacompleto, na.rm=TRUE), 
             poblacion=max(poblacion)) %>% 
   mutate(pob_dosis_1 = primera_dosis_cantidad / poblacion * 100, 
          pob_dosis_2 = segunda_dosis_cantidad / poblacion * 100,
@@ -51,8 +52,23 @@ breaks_vacunados <- case_when(max(vacunados$pob_dosis_1)<10 ~1,
                               max(vacunados$pob_dosis_1) > 20 & max(vacunados$pob_dosis_1) < 50 ~ 5, 
                               TRUE ~ 10)
 
-vacunados %>% arrange(pob_dosis_1) %>% mutate(orden=row_number()) %>% 
-  pivot_longer(cols=c("pob_soloprimera", "pob_dosis_2"), names_to = "dosis", 
+jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>% 
+  rlist::list.rbind() %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  select(-idprovincia) %>% 
+  group_by(provincia) %>% 
+  summarize(poblacion = sum(as.numeric(personas)), 
+            dosis1=sum(as.numeric(dosis1)), 
+            dosis2=sum(as.numeric(dosis2)), 
+            esquemacompleto =sum(as.numeric(esquemacompleto))) %>% 
+  mutate(pob_dosis_1 = dosis1/poblacion*100, 
+         pob_dosis_2 = dosis2/poblacion*100,
+         pob_completo = esquemacompleto / poblacion*100, 
+         pob_incompleto = pob_dosis_1 - pob_completo) %>% 
+  rename(denominacion = provincia) %>%
+  arrange(pob_dosis_1) %>% mutate(orden=row_number()) %>% 
+  pivot_longer(cols=c("pob_incompleto", "pob_completo"), names_to = "dosis", 
                values_to = "cantidad") %>% 
   # mutate(dosis=factor(dosis, levels=c("pob_soloprimera", "pob_dosis_2"))) %>% 
   ggplot(mapping=aes(x=reorder(denominacion, orden))) +
@@ -70,9 +86,9 @@ vacunados %>% arrange(pob_dosis_1) %>% mutate(orden=row_number()) %>%
         legend.title=element_text(size=9), 
         legend.text=element_text(size=9),
         legend.margin=margin(-15, 0, 0, 0)) +
-  scale_fill_manual(breaks = c("pob_soloprimera", "pob_dosis_2"),
+  scale_fill_manual(breaks = c("pob_incompleto", "pob_completo"),
                     values=c("steelblue3","palegreen3"), 
-                    labels=c("Solo primera dosis","Vacunación completa")) +
+                    labels=c("Vacunación parcial","Vacunación completa")) +
   ggsave(filename="vacunados_provincias.png", height = 6, width = 9.44)
 
 
@@ -107,6 +123,7 @@ break_fechas_totales <- case_when(fecha_ayer - ymd("2021-01-19")< days(80) ~ "1 
                                   fecha_ayer - ymd("2021-01-19")> days(80) & fecha_ayer - ymd("2021-01-19")< days(180) ~ "2 week",
                                   TRUE ~ "1 month")
 
+
 fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>% 
   list.rbind() %>% 
   as.data.frame() %>% 
@@ -117,15 +134,15 @@ fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>%
   group_by(fecha, tipovacuna_simple) %>% 
   summarize(totaldiario = sum(totaldiario)) %>% 
   filter(fecha>ymd("2021-01-19")) %>% 
-  mutate(tipovacuna_simple = factor(tipovacuna_simple, levels=c("Moderna", "Sinopharm",
-                                                  "AstraZeneca", 
-                                                  "Sputnik"))) %>% 
+  mutate(tipovacuna_simple = factor(tipovacuna_simple, levels=c("Pfizer", "Cansino", "Moderna", "Sinopharm",
+                                                                "AstraZeneca", 
+                                                                "Sputnik"))) %>% 
   ggplot(aes(x=fecha, y =totaldiario, fill=tipovacuna_simple))+
   geom_col(alpha=0.8) +
   scale_fill_manual(breaks = c("Sputnik", "AstraZeneca", 
-                               "Sinopharm", "Moderna"),
-                    values=c("indianred3","steelblue3", "springgreen3", "yellow4"), 
-                    labels=c("Sputnik V","AstraZeneca", "Sinopharm", "Moderna"))+
+                               "Sinopharm", "Moderna", "Cansino", "Pfizer"),
+                    values=c("indianred3","steelblue3", "springgreen3", "yellow4", "palevioletred3", "darkorchid3"), 
+                    labels=c("Sputnik V","AstraZeneca", "Sinopharm", "Moderna", "Cansino", "Pfizer"))+
   theme_light() + labs(x="", y="", title=paste0("Total de vacunas reportadas por dia, ",fecha_latina), fill="Vacuna") +
   scale_x_date( date_breaks = break_fechas_totales,date_labels = "%d/%m", expand = c(0,0)) +
   scale_y_continuous(labels=label_number(accuracy = 1, scale = 1, 
@@ -135,7 +152,7 @@ fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>%
         legend.position="bottom", 
         legend.title=element_text(size=9), 
         legend.text=element_text(size=9),
-        legend.margin=margin(-15, 0, 0, 0)) +
+        legend.margin=margin(-15, 0, 0, 0)) + guides(fill = guide_legend(nrow = 1)) +
   ggsave(filename="vacunados_totales_diarios.png", height = 6, width = 9.44)
 
 
@@ -207,15 +224,15 @@ c <- fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>%
   group_by(fecha, tipovacuna_simple) %>% 
   summarize(totaldiario = sum(totaldiario)) %>% 
   filter(fecha>ymd("2021-01-19")) %>% 
-  mutate(tipovacuna_simple = factor(tipovacuna_simple, levels=c("Moderna", "Sinopharm",
+  mutate(tipovacuna_simple = factor(tipovacuna_simple, levels=c("Pfizer", "Cansino", "Moderna", "Sinopharm",
                                                                 "AstraZeneca", 
                                                                 "Sputnik"))) %>% 
   ggplot(aes(x=fecha, y =totaldiario, fill=tipovacuna_simple))+
   geom_col(alpha=0.8) +
   scale_fill_manual(breaks = c("Sputnik", "AstraZeneca", 
-                               "Sinopharm", "Moderna"),
-                    values=c("indianred3","steelblue3", "springgreen3", "yellow4"), 
-                    labels=c("Sputnik V","AstraZeneca", "Sinopharm", "Moderna"))+
+                               "Sinopharm", "Moderna", "Cansino", "Pfizer"),
+                    values=c("indianred3","steelblue3", "springgreen3", "yellow4", "palevioletred3", "darkorchid3"), 
+                    labels=c("Sputnik V","AstraZeneca", "Sinopharm", "Moderna", "Cansino", "Pfizer"))+
   theme_light() + labs(x="", y="", title=paste0("Dosis totales reportadas por día por tipo de vacuna, ",fecha_latina), fill="Vacuna") +
   scale_x_date( date_breaks = break_fechas_totales,date_labels = "%d/%m", expand = c(0,0)) +
   scale_y_continuous(labels=label_number(accuracy = 1, scale = 1, 
@@ -225,7 +242,7 @@ c <- fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>%
         legend.position="bottom", 
         legend.title=element_text(size=9), 
         legend.text=element_text(size=9),
-        legend.margin=margin(-15, 0, 0, 0)) 
+        legend.margin=margin(-15, 0, 0, 0)) + guides(fill = guide_legend(nrow = 1))
 
 d <- fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>% 
   list.rbind() %>% 
@@ -240,16 +257,15 @@ d <- fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>%
   mutate(total = sum(totaldiario), 
          proporcion = totaldiario/total*100) %>% ungroup() %>% 
   filter(fecha>ymd("2021-01-19")) %>% 
-  mutate(tipovacuna = factor(tipovacuna_simple, levels=c("Moderna",
-                                                  "Sinopharm",
-                                                  "AstraZeneca", 
-                                                  "Sputnik"))) %>% 
+  mutate(tipovacuna_simple = factor(tipovacuna_simple, levels=c("Pfizer", "Cansino", "Moderna", "Sinopharm",
+                                                                "AstraZeneca", 
+                                                                "Sputnik"))) %>% 
   ggplot(aes(x=fecha, y =proporcion, fill=tipovacuna_simple))+
   geom_area(alpha=0.8) +
   scale_fill_manual(breaks = c("Sputnik", "AstraZeneca", 
-                               "Sinopharm", "Moderna"),
-                    values=c("indianred3","steelblue3", "springgreen3", "yellow4"), 
-                    labels=c("Sputnik V","AstraZeneca", "Sinopharm", "Moderna"))+
+                               "Sinopharm", "Moderna", "Cansino", "Pfizer"),
+                    values=c("indianred3","steelblue3", "springgreen3", "yellow4", "palevioletred3", "darkorchid3"), 
+                    labels=c("Sputnik V","AstraZeneca", "Sinopharm", "Moderna", "Cansino", "Pfizer"))+
   theme_light() + labs(x="", y="", title="", fill="Vacuna") +
   scale_x_date( date_breaks = break_fechas_totales,date_labels = "%d/%m", expand = c(0,0)) +
   scale_y_continuous(labels=label_number(accuracy = 1, suffix="%"))+
@@ -258,7 +274,7 @@ d <- fromJSON(url("https://covidstats.com.ar/ws/vacunados")) %>%
         legend.position="bottom", 
         legend.title=element_text(size=9), 
         legend.text=element_text(size=9),
-        legend.margin=margin(-15, 0, 0, 0)) 
+        legend.margin=margin(-15, 0, 0, 0)) + guides(fill = guide_legend(nrow = 1))
 
 combinado_vacunas <- c/d
 
@@ -308,7 +324,7 @@ vacunados_edades <- jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunad
   rlist::list.rbind() %>% 
   t() %>% 
   as.data.frame() %>% 
-  select(-idprovincia)
+  select(-idprovincia) 
 
 summary_row <- vacunados_edades %>% 
   group_by(grupo) %>% 
@@ -316,7 +332,7 @@ summary_row <- vacunados_edades %>%
             total_dosis1 = sum(as.numeric(dosis1)), 
             proporcion_total_pais = round(total_dosis1/total_personas*100,1)) %>% 
   select(grupo, proporcion_total_pais) %>% pivot_wider(names_from = grupo, values_from = proporcion_total_pais) %>% 
-  bind_cols(c("Total Pais")) %>% rename(provincia = `...10`) %>% mutate(orden = 1) %>% 
+  bind_cols(c("Total Pais")) %>% rename(provincia = `...11`) %>% mutate(orden = 1) %>% 
   relocate(provincia)
 
 jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>% 
@@ -335,7 +351,8 @@ jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>%
   select(-orden) %>% 
   rename(" " = provincia) %>% 
   gt() %>%  data_color(
-    columns = vars(`15-29`,
+    columns = vars(`<18`,
+                   `18-29`,
                    `30-39`,
                    `40-49`,
                    `50-59`,
@@ -365,7 +382,8 @@ jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>%
       cell_fill(color = "lightcyan"),
       cell_text(weight = "bold")
     ),
-    locations = cells_column_labels(vars(`15-29`,
+    locations = cells_column_labels(vars(`<18`,
+                                         `18-29`,
                                          `30-39`,
                                          `40-49`,
                                          `50-59`,
@@ -382,10 +400,10 @@ jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>%
 summary_row <- vacunados_edades %>% 
   group_by(grupo) %>% 
   summarize(total_personas = sum(as.numeric(personas)), 
-            total_dosis1 = sum(as.numeric(dosis2)), 
+            total_dosis1 = sum(as.numeric(esquemacompleto)), 
             proporcion_total_pais = round(total_dosis1/total_personas*100,1)) %>% 
   select(grupo, proporcion_total_pais) %>% pivot_wider(names_from = grupo, values_from = proporcion_total_pais) %>% 
-  bind_cols(c("Total Pais")) %>% rename(provincia = `...10`) %>% mutate(orden = 1) %>% 
+  bind_cols(c("Total Pais")) %>% rename(provincia = `...11`) %>% mutate(orden = 1) %>% 
   relocate(provincia)
 
 
@@ -394,7 +412,7 @@ jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>%
   t() %>% 
   as.data.frame() %>% 
   select(-idprovincia) %>%
-  mutate(proporcion = round(as.numeric(dosis2)/as.numeric(personas)*100, 1)) %>% 
+  mutate(proporcion = round(as.numeric(esquemacompleto)/as.numeric(personas)*100, 1)) %>% 
   select(provincia, grupo, proporcion) %>% 
   pivot_wider(names_from = grupo, values_from=proporcion) %>% 
   relocate(">=100", .after = "90-99") %>% 
@@ -405,7 +423,8 @@ jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>%
   select(-orden) %>% 
   rename(" " = provincia) %>% 
   gt() %>%  data_color(
-    columns = vars(`15-29`,
+    columns = vars(`<18`,
+                   `18-29`,
                    `30-39`,
                    `40-49`,
                    `50-59`,
@@ -419,7 +438,7 @@ jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>%
         palette = "ggsci::green_material"
       ) %>% as.character(),
       domain = c(0,100), na.color = "#1B5E20")) %>% 
-  tab_header(title=paste0("Segundas dosis cada 100 habitantes, ", fecha_latina), subtitle = NULL) %>% 
+  tab_header(title=paste0("Vacunaciones completas cada 100 habitantes, ", fecha_latina), subtitle = NULL) %>% 
   tab_style(
     style = list(
       cell_fill(color = "white"),
@@ -435,7 +454,8 @@ jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>%
       cell_fill(color = "lightcyan"),
       cell_text(weight = "bold")
     ),
-    locations = cells_column_labels(vars(`15-29`,
+    locations = cells_column_labels(vars(`<18`,
+                                         `18-29`,
                                          `30-39`,
                                          `40-49`,
                                          `50-59`,
@@ -449,8 +469,24 @@ jsonlite::fromJSON(url("https://covidstats.com.ar/ws/vacunadosedades")) %>%
     locations = cells_title()) %>% 
   gtsave("vacunados_provincias_edades_segundadosis.png")
 
+mayores_menores_18 <- vacunados_edades %>% 
+  mutate(across(3:6, as.numeric)) %>% 
+  mutate(mayor60 =  ifelse(grupo == "<18", 1, 0)) %>% 
+  group_by(mayor60) %>% 
+  summarize(dosis1 = sum(dosis1), 
+            personas = sum(personas), 
+            proporcion = round(dosis1/personas*100, 0))
+
+
+mayores_18_vacunados <- mayores_menores_18 %>% filter(mayor60==0) %>% 
+  pull(proporcion) %>% as.character() %>% paste0("%")
+
+menores_18_vacunados <- mayores_menores_18 %>% filter(mayor60==1) %>% 
+  pull(proporcion) %>% as.character() %>% paste0("%")
+
+
 mayores_menores_60 <- vacunados_edades %>% 
-  mutate(across(3:5, as.numeric)) %>% 
+  mutate(across(3:6, as.numeric)) %>% 
   mutate(mayor60 =  ifelse(grupo %in% c(">=100", "60-69", "70-79", "80-89", "90-99"), 1, 0)) %>% 
   group_by(mayor60) %>% 
   summarize(dosis1 = sum(dosis1), 
@@ -465,7 +501,7 @@ menores_60_vacunados <- mayores_menores_60 %>% filter(mayor60==0) %>%
   pull(proporcion) %>% as.character() %>% paste0("%")
 
 mayores_menores_70 <- vacunados_edades %>% 
-  mutate(across(3:5, as.numeric)) %>% 
+  mutate(across(3:6, as.numeric)) %>% 
   mutate(mayor70 =  ifelse(grupo %in% c(">=100", "70-79", "80-89", "90-99"), 1, 0)) %>% 
   group_by(mayor70) %>% 
   summarize(dosis1 = sum(dosis1), 
@@ -476,7 +512,7 @@ mayores_70_vacunados <- mayores_menores_70 %>% filter(mayor70==1) %>%
   pull(proporcion) %>% as.character() %>% paste0("%")
 
 mayores_menores_80 <- vacunados_edades %>% 
-  mutate(across(3:5, as.numeric)) %>% 
+  mutate(across(3:6, as.numeric)) %>% 
   mutate(mayor80 =  ifelse(grupo %in% c(">=100","80-89", "90-99"), 1, 0)) %>% 
   group_by(mayor80) %>% 
   summarize(dosis1 = sum(dosis1), 
@@ -487,11 +523,26 @@ mayores_80_vacunados <- mayores_menores_80 %>% filter(mayor80==1) %>%
   pull(proporcion) %>% as.character() %>% paste0("%")
 
 ##
+
+mayores_menores_18_dosis2 <- vacunados_edades %>% 
+  mutate(across(3:6, as.numeric)) %>% 
+  mutate(mayor60 =  ifelse(grupo == "<18", 1, 0)) %>% 
+  group_by(mayor60) %>% 
+  summarize(dosis2 = sum(esquemacompleto), 
+            personas = sum(personas), 
+            proporcion = round(dosis2/personas*100, 0))
+
+mayores_18_dosis2 <- mayores_menores_18_dosis2 %>% filter(mayor60==0) %>% 
+  pull(proporcion) %>% as.character() %>% paste0("%")
+
+menores_18_dosis2 <- mayores_menores_18_dosis2 %>% filter(mayor60==1) %>% 
+  pull(proporcion) %>% as.character() %>% paste0("%")
+
 mayores_menores_60_dosis2 <- vacunados_edades %>% 
-  mutate(across(3:5, as.numeric)) %>% 
+  mutate(across(3:6, as.numeric)) %>% 
   mutate(mayor60 =  ifelse(grupo %in% c(">=100", "60-69", "70-79", "80-89", "90-99"), 1, 0)) %>% 
   group_by(mayor60) %>% 
-  summarize(dosis2 = sum(dosis2), 
+  summarize(dosis2 = sum(esquemacompleto), 
             personas = sum(personas), 
             proporcion = round(dosis2/personas*100, 0))
 
@@ -502,10 +553,10 @@ menores_60_dosis2 <- mayores_menores_60_dosis2 %>% filter(mayor60==0) %>%
   pull(proporcion) %>% as.character() %>% paste0("%")
 
 mayores_menores_70_dosis2 <- vacunados_edades %>% 
-  mutate(across(3:5, as.numeric)) %>% 
+  mutate(across(3:6, as.numeric)) %>% 
   mutate(mayor70 =  ifelse(grupo %in% c(">=100", "70-79", "80-89", "90-99"), 1, 0)) %>% 
   group_by(mayor70) %>% 
-  summarize(dosis2 = sum(dosis2), 
+  summarize(dosis2 = sum(esquemacompleto), 
             personas = sum(personas), 
             proporcion = round(dosis2/personas*100, 0))
 
@@ -513,10 +564,10 @@ mayores_70_dosis2 <- mayores_menores_70_dosis2 %>% filter(mayor70==1) %>%
   pull(proporcion) %>% as.character() %>% paste0("%")
 
 mayores_menores_80_dosis2 <- vacunados_edades %>% 
-  mutate(across(3:5, as.numeric)) %>% 
+  mutate(across(3:6, as.numeric)) %>% 
   mutate(mayor80 =  ifelse(grupo %in% c(">=100","80-89", "90-99"), 1, 0)) %>% 
   group_by(mayor80) %>% 
-  summarize(dosis2 = sum(dosis2), 
+  summarize(dosis2 = sum(esquemacompleto), 
             personas = sum(personas), 
             proporcion = round(dosis2/personas*100, 0))
 
@@ -524,7 +575,7 @@ mayores_80_dosis2 <- mayores_menores_80_dosis2 %>% filter(mayor80==1) %>%
   pull(proporcion) %>% as.character() %>% paste0("%")
 
 vacunados6069 <- vacunados_edades %>% 
-  mutate(across(3:5, as.numeric)) %>% 
+  mutate(across(3:6, as.numeric)) %>% 
   group_by(grupo) %>% 
   summarize(dosis1 = sum(dosis1), 
             personas = sum(personas), 
@@ -533,7 +584,7 @@ vacunados6069 <- vacunados_edades %>%
   pull(proporcion) %>% as.character() %>% paste0("%")
 
 vacunados7079 <- vacunados_edades %>% 
-  mutate(across(3:5, as.numeric)) %>% 
+  mutate(across(3:6, as.numeric)) %>% 
   group_by(grupo) %>% 
   summarize(dosis1 = sum(dosis1), 
             personas = sum(personas), 
@@ -542,7 +593,7 @@ vacunados7079 <- vacunados_edades %>%
   pull(proporcion) %>% as.character() %>% paste0("%")
 
 vacunados8089 <- vacunados_edades %>% 
-  mutate(across(3:5, as.numeric)) %>% 
+  mutate(across(3:6, as.numeric)) %>% 
   group_by(grupo) %>% 
   summarize(dosis1 = sum(dosis1), 
             personas = sum(personas), 
@@ -551,7 +602,7 @@ vacunados8089 <- vacunados_edades %>%
   pull(proporcion) %>% as.character() %>% paste0("%")
 
 vacunados9099 <- vacunados_edades %>% 
-  mutate(across(3:5, as.numeric)) %>% 
+  mutate(across(3:6, as.numeric)) %>% 
   group_by(grupo) %>% 
   summarize(dosis1 = sum(dosis1), 
             personas = sum(personas), 
@@ -560,7 +611,7 @@ vacunados9099 <- vacunados_edades %>%
   pull(proporcion) %>% as.character() %>% paste0("%")
 
 vacunados100 <- vacunados_edades %>% 
-  mutate(across(3:5, as.numeric)) %>% 
+  mutate(across(3:6, as.numeric)) %>% 
   group_by(grupo) %>% 
   summarize(dosis1 = sum(dosis1), 
             personas = sum(personas), 
@@ -568,26 +619,22 @@ vacunados100 <- vacunados_edades %>%
   filter(grupo==">=100") %>% 
   pull(proporcion) %>% as.character() %>% paste0("%")
 
-texto_tweet_2 <- paste0("Hasta ayer, ", 
-                        fecha_latina, 
-                        ", recibió una dosis ",
-                        menores_60_vacunados, 
-                        " de los menores de 60 años y ", 
-                        mayores_60_vacunados, 
-                        " de los mayores de 60, ",
-                        mayores_70_vacunados,
-                        " de los mayores de 70 y ",
-                        mayores_80_vacunados,
-                        " de los mayores de 80. Recibió dos dosis ", 
-                        menores_60_dosis2, 
-                        " de los menores de 60 años y ", 
-                        mayores_60_dosis2, 
-                        " de los mayores de 60, ",
-                        mayores_70_dosis2,
-                        " de los mayores de 70 y ",
-                        mayores_80_dosis2,
-                        " de los mayores de 80."
-)
+
+texto_tweet_2_bis <- paste0("Hasta ayer, ", 
+                            fecha_latina, ": \n \n",
+                            "Primera dosis: \n", 
+                            "Menores de 18: ", menores_18_vacunados, "\n", 
+                            "Mayores de 18: ", mayores_18_vacunados, "\n",
+                            "Mayores de 60: ", mayores_60_vacunados, "\n",
+                            "Mayores de 70: ", mayores_70_vacunados, "\n",
+                            "Mayores de 80: ", mayores_80_vacunados, "\n \n",
+                            "Vacunación completa: \n", 
+                            "Menores de 18: ", menores_18_dosis2, "\n", 
+                            "Mayores de 18: ", mayores_18_dosis2, "\n",
+                            "Mayores de 60: ", mayores_60_dosis2, "\n",
+                            "Mayores de 70: ", mayores_70_dosis2, "\n",
+                            "Mayores de 80: ", mayores_80_dosis2)
+
 
 ###################################################### TERCER TUIT ########################################################
 
@@ -760,6 +807,11 @@ texto_tweet_3 <- paste0("Hasta ayer, ",
 
 ###################################################### CUARTO TUIT ########################################################
 
+
+substrRight <- function(x, n){
+  substr(x, nchar(x)-n+1, nchar(x))
+}
+
 vacunacion_deptos <- fromJSON(url("https://covidstats.com.ar/ws/mapa?porprovincia=false&pordepartamento=true&datosadicionales=true")) %>% 
   list.rbind() %>% 
   as.data.frame() %>% 
@@ -782,7 +834,7 @@ deptos_hoy <- vacunacion_deptos %>% filter(fecha == max(fecha)) %>%
          pob_dosis_2 = dosis2/poblacion*100, 
          pob_soloprimera = pob_dosis_1 - pob_dosis_2)
 
-shape <- read_sf("Codgeo_Pais_x_dpto_con_datos") %>% 
+shape <- read_sf("Codgeo_Pais_x_dpto_con_datos (1)") %>% 
   mutate(link2 = ifelse(substr(link, start=1, stop=2)=="02", "99999", link)) %>% 
   left_join(deptos_hoy, by="link2")
 
@@ -795,7 +847,7 @@ amba_dosis1 <- shape %>% st_simplify(dTolerance = 0.001) %>%
                        "06427", "06270", "06260", "06434", "06490", 
                        "06028", "06658", "06091", "06274", "99999")) %>% 
   ggplot() + geom_sf(aes(fill=pob_dosis_1), size=0.04, show.legend = FALSE) +
-  colorspace::scale_fill_continuous_sequential(palette="Greens", limits=c(0,100)) +
+  colorspace::scale_fill_continuous_sequential(palette="Greens", limits=c(0,106)) +
   coord_sf(datum=NA) + theme_minimal() +
   theme(axis.text.x = element_blank(),
         axis.text.y = element_blank(),
@@ -805,7 +857,7 @@ amba_dosis1 <- shape %>% st_simplify(dTolerance = 0.001) %>%
 pais_dosis1 <- shape %>% st_simplify(dTolerance = 0.005) %>% 
   filter(! departamen %in% c("Antártida Argentina", "Islas del Atlántico Sur")) %>% 
   ggplot() + geom_sf(aes(fill=pob_dosis_1), size=0.05) +
-  colorspace::scale_fill_continuous_sequential(palette="Greens", limits=c(0,100)) +
+  colorspace::scale_fill_continuous_sequential(palette="Greens", limits=c(0,106)) +
   coord_sf(datum=NA) + theme_minimal() +
   labs(title=paste0("Porcentaje de la población \n con al menos una dosis, ", fecha_latina), 
        fill="%")+
@@ -832,7 +884,7 @@ amba_dosis2 <- shape %>% st_simplify(dTolerance = 0.001) %>%
                        "06427", "06270", "06260", "06434", "06490", 
                        "06028", "06658", "06091", "06274", "99999")) %>% 
   ggplot() + geom_sf(aes(fill=pob_dosis_2), size=0.04, show.legend = FALSE) +
-  colorspace::scale_fill_continuous_sequential(palette="Greens", limits=c(0,100)) +
+  colorspace::scale_fill_continuous_sequential(palette="Greens", limits=c(0,106)) +
   coord_sf(datum=NA) + theme_minimal() +
   theme(axis.text.x = element_blank(),
         axis.text.y = element_blank(),
@@ -842,7 +894,7 @@ amba_dosis2 <- shape %>% st_simplify(dTolerance = 0.001) %>%
 pais_dosis2 <- shape %>% st_simplify(dTolerance = 0.005) %>% 
   filter(! departamen %in% c("Antártida Argentina", "Islas del Atlántico Sur")) %>% 
   ggplot() + geom_sf(aes(fill=pob_dosis_2), size=0.05) +
-  colorspace::scale_fill_continuous_sequential(palette="Greens", limits=c(0,100)) +
+  colorspace::scale_fill_continuous_sequential(palette="Greens", limits=c(0,106)) +
   coord_sf(datum=NA) + theme_minimal() +
   labs(title=paste0("Porcentaje de la población \n con dos dosis, ", fecha_latina), 
        fill="%")+
@@ -910,6 +962,17 @@ moderna <- fromJSON(url("https://covidstats.com.ar/ws/vacunadosargentina?comprim
   select(c(dosis1, dosis2)) %>% 
   mutate(fecha = seq.Date(from = ymd("2020-01-01"), length.out = nrow(.), by="days"))
 
+cansino <- fromJSON(url("https://covidstats.com.ar/ws/vacunadosargentina?comprimido=1&tiposvacuna%5B%5D=9")) %>% 
+  list.rbind() %>% t() %>% 
+  as.data.frame() %>% 
+  select(c(dosis1, dosis2)) %>% 
+  mutate(fecha = seq.Date(from = ymd("2020-01-01"), length.out = nrow(.), by="days"))
+
+pfizer <- fromJSON(url("https://covidstats.com.ar/ws/vacunadosargentina?comprimido=1&tiposvacuna%5B%5D=6")) %>% 
+  list.rbind() %>% t() %>% 
+  as.data.frame() %>% 
+  select(c(dosis1, dosis2)) %>% 
+  mutate(fecha = seq.Date(from = ymd("2020-01-01"), length.out = nrow(.), by="days"))
 
 sputnik.plot <- sputnik %>% mutate(dosis1_acum = cumsum(dosis1), 
                                    dosis2_acum = cumsum(dosis2)) %>% 
@@ -977,13 +1040,13 @@ sinopharm.plot <- sinopharm %>% mutate(dosis1_acum = cumsum(dosis1),
         legend.margin=margin(-15, 0, 0, 0))
 
 moderna.plot <- moderna %>% mutate(dosis1_acum = cumsum(dosis1), 
-                                     dosis2_acum = cumsum(dosis2)) %>% 
+                                   dosis2_acum = cumsum(dosis2)) %>% 
   pivot_longer(cols=c(dosis1_acum, dosis2_acum), 
                names_to = "dosis", 
                values_to = "cantidad") %>% 
   filter(fecha>ymd("2020-12-24")) %>% 
   ggplot(aes(x=fecha, y=cantidad, color=dosis)) +
-  geom_line(size=0.8, show.legend=TRUE)+
+  geom_line(size=0.8, show.legend=FALSE)+
   scale_color_manual(breaks=c("dosis1_acum", "dosis2_acum"), 
                      values= c("steelblue3", "springgreen3"), 
                      labels = c("Primera dosis", "Segunda dosis")) +
@@ -998,9 +1061,53 @@ moderna.plot <- moderna %>% mutate(dosis1_acum = cumsum(dosis1),
         legend.text=element_text(size=11),
         legend.margin=margin(-15, 0, 0, 0))
 
-combinado_marcas <- sputnik.plot/az.plot/sinopharm.plot/moderna.plot
+cansino.plot <- cansino %>% mutate(dosis1_acum = cumsum(dosis1), 
+                                   dosis2_acum = cumsum(dosis2)) %>% 
+  pivot_longer(cols=c(dosis1_acum, dosis2_acum), 
+               names_to = "dosis", 
+               values_to = "cantidad") %>% 
+  filter(fecha>ymd("2020-12-24")) %>% 
+  ggplot(aes(x=fecha, y=cantidad, color=dosis)) +
+  geom_line(size=0.8, show.legend=FALSE)+
+  scale_color_manual(breaks=c("dosis1_acum", "dosis2_acum"), 
+                     values= c("steelblue3", "springgreen3"), 
+                     labels = c("Primera dosis", "Segunda dosis")) +
+  theme_light() + labs(x="", y="", title=paste0("Dosis de Cansino totales, ",fecha_latina), color="") +
+  scale_x_date( date_breaks = break_fechas_totales,date_labels = "%d/%m", expand = c(0,0)) +
+  scale_y_continuous(labels=label_number(accuracy = 1, scale = 1, 
+                                         big.mark = ".", decimal.mark = ","))+
+  theme(plot.title = element_text(hjust = 0.5, face="bold"), 
+        axis.text = element_text(face="bold"), 
+        legend.position="bottom", 
+        legend.title=element_text(size=9), 
+        legend.text=element_text(size=11),
+        legend.margin=margin(-15, 0, 0, 0))
 
-ggsave(combinado_marcas, filename="combinado_marcas.png", height=9, width=9.44)
+pfizer.plot <- pfizer %>% mutate(dosis1_acum = cumsum(dosis1), 
+                                   dosis2_acum = cumsum(dosis2)) %>% 
+  pivot_longer(cols=c(dosis1_acum, dosis2_acum), 
+               names_to = "dosis", 
+               values_to = "cantidad") %>% 
+  filter(fecha>ymd("2020-12-24")) %>% 
+  ggplot(aes(x=fecha, y=cantidad, color=dosis)) +
+  geom_line(size=0.8, show.legend=TRUE)+
+  scale_color_manual(breaks=c("dosis1_acum", "dosis2_acum"), 
+                     values= c("steelblue3", "springgreen3"), 
+                     labels = c("Primera dosis", "Segunda dosis")) +
+  theme_light() + labs(x="", y="", title=paste0("Dosis de Pfizer totales, ",fecha_latina), color="") +
+  scale_x_date( date_breaks = break_fechas_totales,date_labels = "%d/%m", expand = c(0,0)) +
+  scale_y_continuous(labels=label_number(accuracy = 1, scale = 1, 
+                                         big.mark = ".", decimal.mark = ","))+
+  theme(plot.title = element_text(hjust = 0.5, face="bold"), 
+        axis.text = element_text(face="bold"), 
+        legend.position="bottom", 
+        legend.title=element_text(size=9), 
+        legend.text=element_text(size=11),
+        legend.margin=margin(-15, 0, 0, 0))
+
+combinado_marcas <- sputnik.plot/az.plot/sinopharm.plot/moderna.plot/cansino.plot/pfizer.plot
+
+ggsave(combinado_marcas, filename="combinado_marcas.png", height=10, width=10)
 
 
 az_total <- astrazeneca %>%
@@ -1027,10 +1134,24 @@ moderna_total <- moderna %>%
          vacuna = "Moderna") %>% 
   filter(fecha == max(fecha))
 
+cansino_total <- cansino %>%
+  mutate(dosis1_acum = cumsum(dosis1), 
+         dosis2_acum = cumsum(dosis2), 
+         vacuna = "Cansino") %>% 
+  filter(fecha == max(fecha))
+
+pfizer_total <- pfizer %>%
+  mutate(dosis1_acum = cumsum(dosis1), 
+         dosis2_acum = cumsum(dosis2), 
+         vacuna = "Pfizer") %>% 
+  filter(fecha == max(fecha))
+
 az_total %>% 
   bind_rows(sputnik_total) %>% 
   bind_rows(sinopharm_total) %>% 
   bind_rows(moderna_total) %>% 
+  bind_rows(cansino_total) %>% 
+  bind_rows(pfizer_total) %>%
   pivot_longer(cols = c(dosis1_acum, dosis2_acum)) %>% 
   mutate(value_format = format(value, big.mark=".", decimal.mark=",")) %>% 
   ggplot(aes(x=vacuna, y=value, fill=name)) + geom_col(alpha=0.9) +
@@ -1062,17 +1183,18 @@ sinopharm_total_agregado <-  (sinopharm_total$dosis1_acum + sinopharm_total$dosi
 
 moderna_total_agregado <-  (moderna_total$dosis1_acum + moderna_total$dosis2_acum) %>% format(big.mark=".", decimal.mark=",") 
 
-texto_tweet_5 <- paste0("Hasta ayer, ", 
-                        fecha_latina, 
-                        ", se aplicaron en total ",
-                        az_total_agregado, 
-                        " dosis de AstraZeneca, ", 
-                        moderna_total_agregado, 
-                        " dosis de Moderna, ", 
-                        sinopharm_total_agregado, 
-                        " dosis de Sinopharm y ",
-                        sputnik_total_agregado,
-                        " dosis de Sputnik V.")
+cansino_total_agregado <-  (cansino_total$dosis1_acum + cansino_total$dosis2_acum) %>% format(big.mark=".", decimal.mark=",")
+
+pfizer_total_agrupado <-  (pfizer_total$dosis1_acum + pfizer_total$dosis2_acum) %>% format(big.mark=".", decimal.mark=",") 
+
+
+texto_tweet_5_bis <- paste0("Dosis aplicadas hasta ayer, ", fecha_latina, ": \n \n", 
+                            "AstraZeneca: ", az_total_agregado, "\n",
+                            "Cansino: ", cansino_total_agregado, "\n",
+                            "Moderna: ", moderna_total_agregado, "\n",
+                            "Pfizer: ", pfizer_total_agrupado, "\n",
+                            "Sinopharm: ", sinopharm_total_agregado, "\n",
+                            "Sputnik V: ", sputnik_total_agregado) %>% 
 
 # Postear los tuits
 
